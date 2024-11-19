@@ -1,9 +1,11 @@
 #include <stdio.h>
+#include <stdlib.h> // Для getenv()
 #include <string.h>
 #include <locale.h>
 
 #define HISTORY_FILE "history"
 
+// Функция для сохранения команды в файл истории
 void save_to_history(const char *command) {
     FILE *file = fopen(HISTORY_FILE, "a"); // Открываем файл для добавления данных
     if (file == NULL) {
@@ -43,12 +45,30 @@ int main() {
             save_to_history(a);
         }
 
-        if (strcmp(a, "exit") == 0 || strcmp(a, "\\q") == 0) { // exit или \q
+        // Команда выхода
+        if (strcmp(a, "exit") == 0 || strcmp(a, "\\q") == 0) {
             printf("Выход\n");
             break;
-        } else if (strncmp(a, "echo ", 5) == 0) { // echo
+        } 
+        
+        // Команда echo
+        else if (strncmp(a, "echo ", 5) == 0) {
             printf("%s\n", a + 5);
-        } else {
+        } 
+        
+        // Команда для вывода переменной окружения
+        else if (strncmp(a, "\\e $", 4) == 0) {
+            const char *var_name = a + 4; // Извлекаем имя переменной (всё после "\e $")
+            char *value = getenv(var_name); // Получаем значение переменной
+            if (value) {
+                printf("%s\n", value); // Вывод значения переменной
+            } else {
+                printf("Переменная окружения '%s' не найдена\n", var_name);
+            }
+        } 
+        
+        // Неизвестная команда
+        else {
             printf("Неизвестная команда\n");
         }
     }
