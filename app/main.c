@@ -1,7 +1,9 @@
 #include <stdio.h>
-#include <stdlib.h> // Для getenv()
+#include <stdlib.h> // Для getenv() и execv()
 #include <string.h>
 #include <locale.h>
+#include <unistd.h> // Для fork() и execv()
+#include <sys/wait.h> // Для wait()
 
 #define HISTORY_FILE "history"
 
@@ -58,12 +60,28 @@ int main() {
         
         // Команда для вывода переменной окружения
         else if (strncmp(a, "\\e $", 4) == 0) {
-            const char *var_name = a + 4; // Извлекаем имя переменной (всё после "\e $")
+            const char *var_name = a + 4; // Имя переменной окружения
             char *value = getenv(var_name); // Получаем значение переменной
             if (value) {
-                printf("%s\n", value); // Вывод значения переменной
+                printf("%s\n", value); // Вывод значения
             } else {
                 printf("Переменная окружения '%s' не найдена\n", var_name);
+            }
+        } 
+        
+        // Выполнение бинарника
+        else if (a[0] == '/') {
+            pid_t pid = fork(); // Создаём дочерний процесс
+            if (pid == 0) {
+                // Дочерний процесс
+                execl(a, a, NULL); // Выполняем бинарник
+                perror("Ошибка выполнения"); // Если exec не удался
+                exit(1); // Завершаем процесс с ошибкой
+            } else if (pid > 0) {
+                // Родительский процесс
+                wait(NULL); // Ожидаем завершения дочернего процесса
+            } else {
+                perror("Ошибка fork");
             }
         } 
         
