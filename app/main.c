@@ -6,7 +6,9 @@
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <signal.h>
-#include <errno.h> // Добавлено для errno и EEXIST
+#include <errno.h>
+#include <fcntl.h>  // Для работы с файловыми дескрипторами
+#include <sys/types.h>  // Для типов PID
 
 #define HISTORY_FILE "history"
 #define SECTOR_SIZE 512
@@ -91,6 +93,29 @@ void handle_cron_command() {
     printf("VFS создана в %s. Задачи cron сохранены в %s.\n", VFS_PATH, CRON_FILE);
 }
 
+// Функция для получения дампа памяти процесса
+void create_memory_dump(int pid) {
+    // Проверка существования процесса
+    char proc_path[256];
+    snprintf(proc_path, sizeof(proc_path), "/proc/%d", pid);
+    if (access(proc_path, F_OK) == -1) {
+        printf("Процесс с PID %d не существует.\n", pid);
+        return;
+    }
+
+    // Формируем команду gcore с нужным префиксом для дампа
+    char command[256];
+    snprintf(command, sizeof(command), "gcore -o core.%d %d", pid, pid);
+    
+    // Запуск gcore для создания дампа памяти
+    int status = system(command);
+    if (status == 0) {
+        printf("Дамп памяти процесса %d успешно создан.\n", pid);
+    } else {
+        printf("Ошибка создания дампа памяти для процесса %d.\n", pid);
+    }
+}
+
 int main() {
     setlocale(LC_ALL, "");
 
@@ -120,12 +145,17 @@ int main() {
             save_to_history(a);
         }
 
+        // Команда выхода
         if (strcmp(a, "exit") == 0 || strcmp(a, "\\q") == 0) {
             printf("Выход\n");
             break;
-        } else if (strncmp(a, "echo ", 5) == 0) {
+        }
+        // Команда echo
+        else if (strncmp(a, "echo ", 5) == 0) {
             printf("%s\n", a + 5);
-        } else if (strncmp(a, "\\e $", 4) == 0) {
+        }
+        // Вывод переменной окружения
+        else if (strncmp(a, "\\e $", 4) == 0) {
             const char *var_name = a + 4;
             char *value = getenv(var_name);
             if (value) {
@@ -133,7 +163,9 @@ int main() {
             } else {
                 printf("Переменная окружения '%s' не найдена\n", var_name);
             }
-        } else if (a[0] == '/') {
+        }
+        // Выполнение бинарника
+        else if (a[0] == '/') {
             pid_t pid = fork();
             if (pid == 0) {
                 execl(a, a, NULL);
@@ -144,11 +176,22 @@ int main() {
             } else {
                 perror("Ошибка fork");
             }
-        } else if (strncmp(a, "\\l ", 3) == 0) {
+        }
+        // Проверка загрузочной сигнатуры
+        else if (strncmp(a, "\\l ", 3) == 0) {
             check_bootable_disk(a + 3);
-        } else if (strcmp(a, "\\cron") == 0) {
+        }
+        // Команда \cron
+        else if (strcmp(a, "\\cron") == 0) {
             handle_cron_command();
-        } else {
+        }
+        // Получение дампа памяти процесса
+        else if (strncmp(a, "\\mem ", 5) == 0) {
+            int pid = atoi(a + 5);
+            create_memory_dump(pid);
+        }
+        // Неизвестная команда
+        else {
             printf("Неизвестная команда\n");
         }
     }
